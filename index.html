@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NTU Timetable → CSV</title>
+<style>
+  :root{
+    --ink:#1b1f23;
+    --paper:#f7f6f2;
+    --line:#d8d4c9;
+    --accent:#2f5d50;
+    --accent-soft:#e4ede9;
+    --warn:#8a6216;
+    --warn-soft:#f6efdc;
+    --err:#a13d2b;
+    --err-soft:#f7e6e2;
+    --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; padding:2.5rem 1.5rem 4rem; background:var(--paper); color:var(--ink);
+    font-family:var(--sans); line-height:1.5;
+  }
+  .wrap{max-width:920px; margin:0 auto;}
+  h1{
+    font-size:1.5rem; letter-spacing:-0.01em; margin:0 0 0.25rem;
+    border-bottom:2px solid var(--ink); padding-bottom:0.6rem;
+  }
+  .sub{color:#5b5f63; font-size:0.92rem; margin:0 0 2rem;}
+  section{margin-bottom:2rem;}
+  .step-label{
+    font-family:var(--mono); font-size:0.75rem; text-transform:uppercase;
+    letter-spacing:0.08em; color:var(--accent); margin-bottom:0.5rem; display:block;
+  }
+  textarea{
+    width:100%; font-family:var(--mono); font-size:0.8rem; padding:0.85rem;
+    border:1px solid var(--line); border-radius:4px; background:#fff; color:var(--ink);
+    resize:vertical;
+  }
+  #rawInput{height:220px;}
+  #csvOutput{height:220px;}
+  .config{
+    display:flex; flex-wrap:wrap; gap:1.25rem; margin:1rem 0 1.25rem;
+    padding:1rem 1.1rem; background:#fff; border:1px solid var(--line); border-radius:4px;
+  }
+  .field{display:flex; flex-direction:column; gap:0.3rem; min-width:170px; flex:1 1 170px;}
+  .field label{font-size:0.78rem; color:#5b5f63;}
+  .field input{
+    font-family:var(--mono); font-size:0.85rem; padding:0.4rem 0.5rem;
+    border:1px solid var(--line); border-radius:3px; width:100%;
+  }
+  .actions{display:flex; gap:0.6rem; flex-wrap:wrap; margin-top:0.9rem;}
+  button{
+    font-family:var(--sans); font-size:0.85rem; font-weight:600; padding:0.6rem 1.1rem;
+    border:1px solid var(--ink); border-radius:3px; background:var(--ink); color:#fff;
+    cursor:pointer;
+  }
+  button.secondary{background:#fff; color:var(--ink);}
+  button:disabled{opacity:0.4; cursor:not-allowed;}
+  button:not(:disabled):hover{opacity:0.88;}
+  button:focus-visible, input:focus-visible, textarea:focus-visible{
+    outline:2px solid var(--accent); outline-offset:2px;
+  }
+  .status{
+    font-family:var(--mono); font-size:0.78rem; margin-top:0.7rem; min-height:1.2em;
+    color:var(--accent);
+  }
+  .status.error{color:var(--err);}
+  .pill-row{display:flex; gap:0.4rem; flex-wrap:wrap; margin-left:0.4rem;}
+  .count-pill{
+    display:inline-block; background:var(--accent-soft); color:var(--accent);
+    border-radius:999px; padding:0.15rem 0.65rem; font-size:0.78rem; font-family:var(--mono);
+  }
+  .count-pill.warn{background:var(--warn-soft); color:var(--warn);}
+  .count-pill.err{background:var(--err-soft); color:var(--err);}
+
+  #diagPanel{
+    background:#fff; border:1px solid var(--line); border-radius:4px;
+    padding:0.9rem 1rem; font-size:0.83rem;
+  }
+  #diagPanel.clean{color:var(--accent);}
+  .diag-item{
+    display:grid; grid-template-columns:5.5rem 1fr; gap:0.6rem;
+    padding:0.5rem 0; border-top:1px solid var(--line);
+  }
+  .diag-item:first-child{border-top:none;}
+  .diag-tag{
+    font-family:var(--mono); font-size:0.7rem; text-transform:uppercase;
+    letter-spacing:0.06em; padding-top:0.15rem;
+  }
+  .diag-item.error .diag-tag{color:var(--err);}
+  .diag-item.warn .diag-tag{color:var(--warn);}
+  .diag-msg{margin:0;}
+  .diag-src{
+    display:block; font-family:var(--mono); font-size:0.72rem; color:#5b5f63;
+    margin-top:0.25rem; white-space:pre-wrap; word-break:break-word;
+  }
+  @media (max-width:560px){
+    .diag-item{grid-template-columns:1fr; gap:0.15rem;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>NTU Timetable → CSV</h1>
+  <p class="sub">Paste your NTU course registration table (the tab-separated export from StudentLink), set your semester's Week&nbsp;1 Monday and recess placement, and generate a CSV ready to import into Google Calendar. Anything the parser can't read is reported below with its line number — check that list before you import.</p>
+
+  <section>
+    <span class="step-label">1 · Raw table</span>
+    <textarea id="rawInput" spellcheck="false" aria-label="Raw timetable table"></textarea>
+  </section>
+
+  <section>
+    <span class="step-label">2 · Semester settings</span>
+    <div class="config">
+      <div class="field">
+        <label for="week1Monday">Week 1 Monday</label>
+        <input type="date" id="week1Monday" value="2026-08-10">
+      </div>
+      <div class="field">
+        <label for="lastWeekBeforeRecess">Last teaching week before recess</label>
+        <input type="number" id="lastWeekBeforeRecess" value="7" min="1" max="13" step="1">
+      </div>
+      <div class="field">
+        <label for="recessWeeks">Recess length (weeks)</label>
+        <input type="number" id="recessWeeks" value="1" min="0" max="4" step="1">
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <span class="step-label">3 · Generate</span>
+    <div class="actions">
+      <button id="genBtn" type="button">Generate CSV</button>
+      <button id="dlBtn" type="button" class="secondary" disabled>Download CSV</button>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite"></div>
+  </section>
+
+  <section>
+    <span class="step-label" style="display:flex; align-items:center; flex-wrap:wrap;">
+      4 · Report
+      <span class="pill-row" id="pillRow"></span>
+    </span>
+    <div id="diagPanel" class="clean">Nothing generated yet.</div>
+  </section>
+
+  <section>
+    <span class="step-label">5 · Output</span>
+    <textarea id="csvOutput" readonly spellcheck="false" aria-label="Generated CSV"
+      placeholder="CSV will appear here after you select Generate CSV."></textarea>
+  </section>
+</div>
+
+<script>
+"use strict";
+
+const DEFAULT_INPUT = `Course \tTitle \tAU \tCourse
+Type \tCourse
+Group \tS/U Grade option \tIndex
+Number \tStatus \tChoice \tClass
+Type \tGroup \tDay \tTime \tVenue \tRemark
+MH1805 \tCALCULUS \t4 \tCORE \tTAIS \t  \t72007 \tREGISTERED \t  \tTUT \tTAIS1 \tTHU \t1430-1620 \tLHS-TR+53
+[Tutorial Room + 53 (The Hive)] \tTeaching Wk2-13
+\t\t\t\t\t\t\t\t\tTUT \tTAIS1 \tWED \t1930-2120 \tCOLLAB 2 \tTeaching Wk4,6,10,12
+MH1812 \tDISCRETE MATHEMATICS \t3 \tCORE \tTAIS \t  \t10388 \tREGISTERED \t  \tTUT \tTAIS1 \tTUE \t1130-1220 \tTR+6
+[Tutorial Room + 6 (NS)] \tTeaching Wk2-13
+\t\t\t\t\t\t\t\t\tLEC/STUDIO \tSCL1 \tTHU \t1730-1820 \tLKC-LT
+[Lee Kong Chian LT / LKC LT (SS)] \tTeaching Wk1-13
+NH0007 \tCRITICAL PERSPECTIVES ON TECHNOLOGY & SOCIETY \t3 \tCORE \tINTERDISCIPLINARY COLLABORATIVE CORE \t  \t46076 \tREGISTERED \t  \tTUT \tT006 \tTHU \t1930-2120 \tCOLLAB 1 \tTeaching Wk1-13
+SC1005 \tDIGITAL LOGIC \t3 \tCORE \t  \t  \t10104 \tREGISTERED \t  \tTUT \tTAIS1 \tTUE \t1230-1320 \tTR+6
+[Tutorial Room + 6 (NS)] \tTeaching Wk2-13
+\t\t\t\t\t\t\t\t\tLAB \tTAIS1 \tMON \t1230-1420 \tHPL \tTeaching Wk1,3,5,7,9,11,13
+\t\t\t\t\t\t\t\t\tLEC/STUDIO \tLE2 \tMON \t0830-0920 \tLT1A
+[LT1A (NS)] \tTeaching Wk1-13
+\t\t\t\t\t\t\t\t\tLEC/STUDIO \tLE2 \tTUE \t1530-1620 \tLT1A
+[LT1A (NS)] \tTeaching Wk1-13
+SC1301 \tLANGUAGE & LOGIC \t3 \tCORE \tINTERDISCIPLINARY COLLABORATIVE CORE \t  \t22035 \tREGISTERED \t  \tSEM \tS2 \tWED \t0830-1120 \tRPR SR2 \tTeaching Wk1-13
+SC1303 \tPROGRAMMING WITH DATA STRUCTURES & ALGORITHMS \t4 \tCORE \tTAIS \t  \t10416 \tREGISTERED \t  \tSEM \tTAIS1 \tTHU \t0930-1220 \tLHN-TR+36
+[Tutorial Room + 36 (The Arc)] \tTeaching Wk1-13
+SC5401 \tMASTER CLASS 1 (TURING ON COMPUTABILITY & INTELLIGENCE) \t3 \tBROADENING AND DEEPENING ELECTIVE \t  \t  \t10417 \tREGISTERED \t  \tSEM \tTAIS1 \tFRI \t1230-1420 \tLHS-TR+47
+[Tutorial Room + 47 (The Hive)] \tTeaching Wk8-10
+\t\t\t\t\t\t\t\t\tSEM \tTAIS1 \tFRI \t1530-1720 \tLHS-TR+47
+[Tutorial Room + 47 (The Hive)] \tTeaching Wk8-10
+\t\t\t\t\t\t\t\t\tSEM \tTAIS1 \tMON \t1530-1720 \tLT15
+[LT15 (NS)] \tTeaching Wk9,10
+\t\t\t\t\t\t\t\t\tSEM \tTAIS1 \tTUE \t1630-1820 \tLHS-TR+56
+[Tutorial Room + 56 (The Hive)] \tTeaching Wk9,10
+\t\t\t\t\t\t\t\t\tSEM \tTAIS1 \tTUE \t1630-1820 \tTAISPSPACE \tTeaching Wk8
+\t\t\t\t\t\t\t\t\tSEM \tTAIS1 \tMON \t1730-1920 \tTAISPSPACE \tTeaching Wk11
+\t\t\t\t\t\t\t\t\tSEM \tTAIS1 \tMON \t1730-1920 \tLHS-LT
+[LT (HIVE)] \tTeaching Wk12
+\t\t\t\t\t\t\t\t\tSEM \tTAIS1 \tMON \t1830-2020 \tTAISPSPACE \tTeaching Wk8-10`;
+
+document.getElementById('rawInput').value = DEFAULT_INPUT;
+
+/* ---------- constants ---------- */
+
+const CLASS_TYPE_RE   = /^(TUT|LEC\/STUDIO|LAB|SEM|PRJ|DES)$/;
+const DAY_RE          = /^(MON|TUE|WED|THU|FRI|SAT|SUN)$/;
+const TIME_RE         = /^(\d{4})-(\d{4})$/;
+const COURSE_CODE_RE  = /^[A-Z]{2,3}\d{3,4}$/;
+const CLASS_TYPE_LABELS = {
+  'TUT': 'Tutorial', 'LEC/STUDIO': 'Lecture', 'LAB': 'Lab',
+  'SEM': 'Seminar', 'PRJ': 'Project', 'DES': 'Design'
+};
+const DAY_OFFSETS = { MON:0, TUE:1, WED:2, THU:3, FRI:4, SAT:5, SUN:6 };
+const DAY_JS      = { MON:1, TUE:2, WED:3, THU:4, FRI:5, SAT:6, SUN:0 };
+const MINOR_WORDS = new Set(['of','on','the','and','with','in','to','a','an','for','&']);
+
+// The StudentLink header wraps across several physical lines when pasted
+// ("Course\nType", "Index\nNumber", ...). Any leading line made up entirely of
+// these tokens is part of that header block.
+const HEADER_TOKENS = new Set([
+  'course','title','au','type','group','s/u grade option','index','number',
+  'status','choice','class','day','time','venue','remark'
+]);
+
+const MAX_TEACHING_WEEK = 13;   // beyond this: warn, still emit
+const ABSURD_WEEK       = 26;   // beyond this: refuse to emit
+const SRC_SNIPPET_LEN   = 110;
+
+/* ---------- diagnostics ---------- */
+
+let DIAG = [];
+
+function diag(level, message, lineNo, src) {
+  DIAG.push({ level, message, lineNo: lineNo ?? null, src: src ?? null });
+}
+
+function renderDiagnostics() {
+  const panel = document.getElementById('diagPanel');
+  panel.textContent = '';
+
+  const errors = DIAG.filter(d => d.level === 'error');
+  const warns  = DIAG.filter(d => d.level === 'warn');
+
+  if (!DIAG.length) {
+    panel.className = 'clean';
+    panel.textContent = 'Every line was recognised. No rows dropped, no remarks missing.';
+    return { errors: errors.length, warns: warns.length };
+  }
+
+  panel.className = '';
+  for (const d of [...errors, ...warns]) {
+    const item = document.createElement('div');
+    item.className = 'diag-item ' + (d.level === 'error' ? 'error' : 'warn');
+
+    const tag = document.createElement('div');
+    tag.className = 'diag-tag';
+    tag.textContent = d.lineNo ? `${d.level} · L${d.lineNo}` : d.level;
+
+    const body = document.createElement('div');
+    const msg = document.createElement('p');
+    msg.className = 'diag-msg';
+    msg.textContent = d.message;          // textContent, never innerHTML
+    body.appendChild(msg);
+
+    if (d.src) {
+      const src = document.createElement('span');
+      src.className = 'diag-src';
+      const snip = d.src.length > SRC_SNIPPET_LEN
+        ? d.src.slice(0, SRC_SNIPPET_LEN) + '…'
+        : d.src;
+      src.textContent = snip.replace(/\t/g, '  ⇥  ');
+      body.appendChild(src);
+    }
+
+    item.appendChild(tag);
+    item.appendChild(body);
+    panel.appendChild(item);
+  }
+  return { errors: errors.length, warns: warns.length };
+}
+
+/* ---------- text helpers ---------- */
+
+// Split on tabs when the line has any; only fall back to run-of-spaces
+// otherwise, so a venue like "COLLAB  2" can't silently shift the columns.
+function splitCols(line) {
+  const trimmed = line.trim();
+  const parts = trimmed.includes('\t')
+    ? trimmed.split('\t')
+    : trimmed.split(/\s{2,}/);
+  return parts.map(s => s.trim()).filter(s => s.length > 0);
+}
+
+function capitalizeWord(w) {
+  return w.replace(/^([^a-zA-Z]*)([a-zA-Z])(.*)$/, (m, pre, first, rest) => pre + first.toUpperCase() + rest);
+}
+
+function toTitleCase(str) {
+  return str.toLowerCase().split(' ').map((w, i) => {
+    const bare = w.replace(/^[^a-zA-Z]+/, '');
+    if (i > 0 && MINOR_WORDS.has(bare)) return w;
+    return capitalizeWord(w);
+  }).join(' ');
+}
+
+function rowLabel(row) {
+  return `${row.course} ${row.classType} ${row.day} ${row.time}`;
+}
+
+/* ---------- week parsing ---------- */
+
+function parseWeeks(row) {
+  const remark = row.remark || '';
+  if (!remark) return [];
+
+  // Anchor on "Teaching Wk" so a venue name containing "Wk" can't match.
+  let m = remark.match(/Teaching\s*Wk\s*([\d,\s\-]+)/i);
+  if (!m) {
+    m = remark.match(/\bWk\s*([\d,\s\-]+)/i);
+    if (m) {
+      diag('warn', `${rowLabel(row)}: week list "${remark}" is not prefixed with "Teaching" — reading it anyway, confirm it isn't part of a venue name.`, row.lineNo);
+    }
+  }
+  if (!m) return [];
+
+  const weeks = new Set();
+  for (const rawPart of m[1].split(',')) {
+    const part = rawPart.trim();
+    if (!part) continue;
+    if (part.includes('-')) {
+      const bits = part.split('-').map(s => s.trim());
+      if (bits.length !== 2 || bits.some(b => !/^\d+$/.test(b))) {
+        diag('warn', `${rowLabel(row)}: could not read week range "${part}" — skipped.`, row.lineNo);
+        continue;
+      }
+      const a = Number(bits[0]), b = Number(bits[1]);
+      if (b < a) {
+        diag('warn', `${rowLabel(row)}: week range "${part}" runs backwards — skipped.`, row.lineNo);
+        continue;
+      }
+      for (let w = a; w <= b; w++) weeks.add(w);
+    } else if (/^\d+$/.test(part)) {
+      weeks.add(Number(part));
+    } else {
+      diag('warn', `${rowLabel(row)}: "${part}" is not a week number — skipped.`, row.lineNo);
+    }
+  }
+  return Array.from(weeks).sort((a, b) => a - b);
+}
+
+/* ---------- table parsing ---------- */
+
+function parseTimetable(text) {
+  const lines = text.split(/\r?\n/);
+  const rows = [];
+  let currentCourse = null;
+  let inHeader = true;
+
+  function pushRow(cols, ctIdx, course, lineNo, raw) {
+    const classType = cols[ctIdx];
+    const group = cols[ctIdx + 1] || '';
+    const day   = cols[ctIdx + 2] || '';
+    const time  = cols[ctIdx + 3] || '';
+    const venue = cols[ctIdx + 4] || '';
+    const remark = cols[ctIdx + 5] || '';
+
+    if (!DAY_RE.test(day)) {
+      diag('warn', `${course.code} ${classType}: expected a day (MON–SUN) but found "${day || '(nothing)'}" — this class row was dropped and produces no events.`, lineNo, raw);
+      return;
+    }
+    if (!TIME_RE.test(time)) {
+      diag('warn', `${course.code} ${classType} ${day}: expected a time like 0830-0920 but found "${time || '(nothing)'}" — this class row was dropped and produces no events.`, lineNo, raw);
+      return;
+    }
+    if (!venue) {
+      diag('warn', `${course.code} ${classType} ${day} ${time}: no venue — the calendar Location will be blank.`, lineNo, raw);
+    }
+    rows.push({
+      course: course.code, title: course.title,
+      classType, group, day, time, venue, remark, lineNo, raw
+    });
+  }
+
+  lines.forEach((rawLine, idx) => {
+    const lineNo = idx + 1;
+    const trimmed = rawLine.trim();
+    if (!trimmed) return;
+
+    const cols = splitCols(trimmed);
+    if (!cols.length) return;
+
+    // Consume the header block, however many lines it wrapped onto. The first
+    // line that isn't pure header vocabulary ends it and falls through below.
+    if (inHeader) {
+      if (cols.every(c => HEADER_TOKENS.has(c.toLowerCase()))) return;
+      inHeader = false;
+    }
+
+    // Wrapped venue line: "[Tutorial Room + 53 (The Hive)]\tTeaching Wk2-13"
+    if (trimmed.startsWith('[')) {
+      const remark = cols.slice(1).join(' ');
+      if (!rows.length) {
+        diag('warn', 'Venue continuation line appears before any class row — its teaching weeks were discarded.', lineNo, trimmed);
+        return;
+      }
+      const target = rows[rows.length - 1];
+      if (!remark) {
+        diag('warn', `Venue continuation line carries no teaching weeks, so ${rowLabel(target)} still has none.`, lineNo, trimmed);
+        return;
+      }
+      if (target.remark) {
+        // A row's remark is only ever set once in a well-formed table, so a
+        // second one means this line belongs to a row that was dropped above.
+        // Keep the existing remark rather than clobbering a good week list.
+        diag('warn', `${rowLabel(target)} already has the remark "${target.remark}", so "${remark}" was discarded. It most likely belongs to a class row that was dropped just above.`, lineNo, trimmed);
+        return;
+      }
+      target.remark = remark;
+      return;
+    }
+
+    // New course block.
+    if (COURSE_CODE_RE.test(cols[0])) {
+      const title = cols[1] || '';
+      // Set the current course *before* validating, so that a malformed course
+      // line can't cause following rows to be filed under the previous course.
+      currentCourse = { code: cols[0], title };
+      if (!title) {
+        diag('warn', `Course ${cols[0]} has no title — the calendar subject will just be the code.`, lineNo, trimmed);
+      }
+      const ctIdx = cols.findIndex((c, i) => i > 1 && CLASS_TYPE_RE.test(c));
+      if (ctIdx === -1) {
+        diag('warn', `Course ${cols[0]}: no class type (TUT / LEC/STUDIO / LAB / SEM / PRJ / DES) on this line — the row was dropped.`, lineNo, trimmed);
+        return;
+      }
+      pushRow(cols, ctIdx, currentCourse, lineNo, trimmed);
+      return;
+    }
+
+    // Continuation row for the course above.
+    if (CLASS_TYPE_RE.test(cols[0])) {
+      if (!currentCourse) {
+        diag('warn', `A ${cols[0]} row appears before any course code — dropped, because there is nothing to attach it to.`, lineNo, trimmed);
+        return;
+      }
+      pushRow(cols, 0, currentCourse, lineNo, trimmed);
+      return;
+    }
+
+    diag('warn', 'Line not recognised as a header, course, class, or venue continuation — ignored.', lineNo, trimmed);
+  });
+
+  return rows;
+}
+
+/* ---------- date + time ---------- */
+
+// Build at noon so a DST transition at midnight can't shift the calendar day.
+function weekMonday(weekNum, week1Monday, lastWeekBeforeRecess, recessWeeks) {
+  let weekOffset = weekNum - 1;
+  if (weekNum > lastWeekBeforeRecess) weekOffset += recessWeeks;
+  return new Date(
+    week1Monday.getFullYear(),
+    week1Monday.getMonth(),
+    week1Monday.getDate() + weekOffset * 7,
+    12, 0, 0, 0
+  );
+}
+
+function formatDate(d) {
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${mm}/${dd}/${d.getFullYear()}`;
+}
+
+function parseHHMM(hhmm) {
+  const h = Number(hhmm.slice(0, 2));
+  const m = Number(hhmm.slice(2, 4));
+  if (!Number.isInteger(h) || !Number.isInteger(m) || h > 23 || m > 59) return null;
+  return h * 60 + m;
+}
+
+function formatTime(hhmm) {
+  let h = Number(hhmm.slice(0, 2));
+  const m = hhmm.slice(2, 4);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  let h12 = h % 12;
+  if (h12 === 0) h12 = 12;
+  return `${h12}:${m} ${ampm}`;
+}
+
+function csvEscape(field) {
+  field = String(field);
+  if (/[",\r\n]/.test(field)) field = '"' + field.replace(/"/g, '""') + '"';
+  return field;
+}
+
+/* ---------- CSV generation ---------- */
+
+function generateCSV(rows, week1Monday, lastWeekBeforeRecess, recessWeeks) {
+  const header = ['Subject', 'Start Date', 'Start Time', 'End Date', 'End Time', 'All Day Event', 'Description', 'Location', 'Private'];
+  const csvRows = [header];
+  const seen = new Map();
+  let eventCount = 0;
+  let emptyRows = 0;
+
+  for (const row of rows) {
+    const weeks = parseWeeks(row);
+    if (!weeks.length) {
+      emptyRows++;
+      diag('warn', row.remark
+        ? `${rowLabel(row)}: no teaching weeks found in "${row.remark}" — 0 events generated.`
+        : `${rowLabel(row)}: no "Teaching Wk..." remark at all — 0 events generated. Check whether its venue continuation line is missing.`,
+        row.lineNo, row.raw);
+      continue;
+    }
+
+    const [startHHMM, endHHMM] = row.time.split('-');
+    const startMin = parseHHMM(startHHMM);
+    const endMin   = parseHHMM(endHHMM);
+    if (startMin === null || endMin === null) {
+      diag('warn', `${rowLabel(row)}: "${row.time}" is not a real clock time — row dropped, 0 events generated.`, row.lineNo, row.raw);
+      emptyRows++;
+      continue;
+    }
+    if (endMin <= startMin) {
+      diag('warn', `${rowLabel(row)}: end time is not after start time. Events were still written, but they will look wrong in Google Calendar.`, row.lineNo, row.raw);
+    }
+
+    const dayOff = DAY_OFFSETS[row.day];
+    const subject = `${row.course} ${toTitleCase(row.title)} (${CLASS_TYPE_LABELS[row.classType] || row.classType})`;
+
+    for (const wk of weeks) {
+      if (wk < 1 || wk > ABSURD_WEEK) {
+        diag('warn', `${rowLabel(row)}: week ${wk} is outside 1–${ABSURD_WEEK} and looks like a typo — no event written for it.`, row.lineNo);
+        continue;
+      }
+      if (wk > MAX_TEACHING_WEEK) {
+        diag('warn', `${rowLabel(row)}: week ${wk} is past teaching week ${MAX_TEACHING_WEEK} — event written, but confirm the date.`, row.lineNo);
+      }
+
+      const monday = weekMonday(wk, week1Monday, lastWeekBeforeRecess, recessWeeks);
+      const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + dayOff, 12, 0, 0, 0);
+
+      // Invariant: the date we computed must land on the day the table said.
+      if (d.getDay() !== DAY_JS[row.day]) {
+        diag('error', `${rowLabel(row)} week ${wk}: date arithmetic produced ${formatDate(d)}, which is not a ${row.day}. No event written — this is a bug, not a data problem.`, row.lineNo);
+        continue;
+      }
+
+      const dateStr = formatDate(d);
+      const key = `${subject}|${dateStr}|${startHHMM}`;
+      if (seen.has(key)) {
+        diag('warn', `${rowLabel(row)} on ${dateStr}: identical event already written from line ${seen.get(key)}. Both were kept, so you will get a duplicate in your calendar.`, row.lineNo);
+      } else {
+        seen.set(key, row.lineNo);
+      }
+
+      csvRows.push([
+        subject, dateStr, formatTime(startHHMM), dateStr, formatTime(endHHMM),
+        'False', `Week ${wk}`, row.venue, 'False'
+      ]);
+      eventCount++;
+    }
+  }
+
+  return {
+    csv: csvRows.map(r => r.map(csvEscape).join(',')).join('\r\n'),
+    eventCount,
+    rowCount: rows.length,
+    emptyRows
+  };
+}
+
+/* ---------- config reading ---------- */
+
+function readConfig() {
+  const dateStr = document.getElementById('week1Monday').value;
+  const lastRaw = document.getElementById('lastWeekBeforeRecess').value.trim();
+  const recessRaw = document.getElementById('recessWeeks').value.trim();
+
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  if (!m) throw new Error('Set Week 1 Monday before generating.');
+  const y = +m[1], mo = +m[2], da = +m[3];
+  const week1Monday = new Date(y, mo - 1, da, 12, 0, 0, 0);
+  if (week1Monday.getFullYear() !== y || week1Monday.getMonth() !== mo - 1 || week1Monday.getDate() !== da) {
+    throw new Error(`${dateStr} is not a real date.`);
+  }
+  if (week1Monday.getDay() !== 1) {
+    diag('warn', `Week 1 Monday (${dateStr}) falls on a ${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][week1Monday.getDay()]}. Every date below is shifted by the same amount.`);
+  }
+
+  if (!/^\d+$/.test(lastRaw)) throw new Error('Last teaching week before recess must be a whole number — every date after recess depends on it.');
+  if (!/^\d+$/.test(recessRaw)) throw new Error('Recess length must be a whole number (0 if there is no recess) — every date after recess depends on it.');
+
+  let lastWeekBeforeRecess = Number(lastRaw);
+  let recessWeeks = Number(recessRaw);
+
+  if (lastWeekBeforeRecess < 1 || lastWeekBeforeRecess > MAX_TEACHING_WEEK) {
+    const clamped = Math.min(Math.max(lastWeekBeforeRecess, 1), MAX_TEACHING_WEEK);
+    diag('warn', `Last teaching week before recess was ${lastWeekBeforeRecess}; using ${clamped} instead.`);
+    lastWeekBeforeRecess = clamped;
+  }
+  if (recessWeeks > 4) {
+    diag('warn', `Recess length of ${recessWeeks} weeks is unusual — dates after recess are shifted by that much.`);
+  }
+
+  return { week1Monday, lastWeekBeforeRecess, recessWeeks };
+}
+
+/* ---------- run ---------- */
+
+let lastCSV = '';
+
+function setPills(items) {
+  const row = document.getElementById('pillRow');
+  row.textContent = '';
+  for (const it of items) {
+    const el = document.createElement('span');
+    el.className = 'count-pill' + (it.tone ? ' ' + it.tone : '');
+    el.textContent = it.text;
+    row.appendChild(el);
+  }
+}
+
+function runParse() {
+  const statusEl = document.getElementById('status');
+  const dlBtn = document.getElementById('dlBtn');
+  const panel = document.getElementById('diagPanel');
+
+  DIAG = [];
+  lastCSV = '';
+  dlBtn.disabled = true;
+  statusEl.className = 'status';
+  document.getElementById('csvOutput').value = '';
+  setPills([]);
+
+  let cfg;
+  try {
+    cfg = readConfig();
+  } catch (err) {
+    statusEl.className = 'status error';
+    statusEl.textContent = err.message;
+    panel.className = '';
+    panel.textContent = '';
+    renderDiagnostics();
+    if (!DIAG.length) { panel.className = 'clean'; panel.textContent = 'Fix the setting above, then generate again.'; }
+    return;
+  }
+
+  const raw = document.getElementById('rawInput').value;
+  const rows = parseTimetable(raw);
+
+  if (!rows.length) {
+    statusEl.className = 'status error';
+    statusEl.textContent = 'No class rows recognised. See the report below.';
+    renderDiagnostics();
+    return;
+  }
+
+  const { csv, eventCount, rowCount, emptyRows } = generateCSV(
+    rows, cfg.week1Monday, cfg.lastWeekBeforeRecess, cfg.recessWeeks
+  );
+
+  document.getElementById('csvOutput').value = csv;
+  lastCSV = csv;
+  dlBtn.disabled = eventCount === 0;
+
+  const counts = renderDiagnostics();
+
+  const pills = [{ text: `${rowCount} class rows → ${eventCount} events` }];
+  if (emptyRows) pills.push({ text: `${emptyRows} rows made 0 events`, tone: 'warn' });
+  if (counts.warns) pills.push({ text: `${counts.warns} warnings`, tone: 'warn' });
+  if (counts.errors) pills.push({ text: `${counts.errors} errors`, tone: 'err' });
+  setPills(pills);
+
+  if (counts.errors) {
+    statusEl.className = 'status error';
+    statusEl.textContent = 'Generated, but with errors. Read the report before importing.';
+  } else if (counts.warns) {
+    statusEl.textContent = 'Generated with warnings. Read the report before importing.';
+  } else {
+    statusEl.textContent = 'Generated cleanly.';
+  }
+}
+
+function downloadCSV() {
+  if (!lastCSV) return;
+  const blob = new Blob(['\uFEFF' + lastCSV], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'timetable.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+document.getElementById('genBtn').addEventListener('click', runParse);
+document.getElementById('dlBtn').addEventListener('click', downloadCSV);
+</script>
+</body>
+</html>
