@@ -3,6 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; img-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
 <title>NTU Timetable → CSV</title>
 <style>
   :root{
@@ -157,55 +161,52 @@
 <script>
 "use strict";
 
-const DEFAULT_INPUT = `Course \tTitle \tAU \tCourse
-Type \tCourse
-Group \tS/U Grade option \tIndex
-Number \tStatus \tChoice \tClass
-Type \tGroup \tDay \tTime \tVenue \tRemark
-MH1805 \tCALCULUS \t4 \tCORE \tTAIS \t  \t72007 \tREGISTERED \t  \tTUT \tTAIS1 \tTHU \t1430-1620 \tLHS-TR+53
-[Tutorial Room + 53 (The Hive)] \tTeaching Wk2-13
-\t\t\t\t\t\t\t\t\tTUT \tTAIS1 \tWED \t1930-2120 \tCOLLAB 2 \tTeaching Wk4,6,10,12
-MH1812 \tDISCRETE MATHEMATICS \t3 \tCORE \tTAIS \t  \t10388 \tREGISTERED \t  \tTUT \tTAIS1 \tTUE \t1130-1220 \tTR+6
-[Tutorial Room + 6 (NS)] \tTeaching Wk2-13
-\t\t\t\t\t\t\t\t\tLEC/STUDIO \tSCL1 \tTHU \t1730-1820 \tLKC-LT
-[Lee Kong Chian LT / LKC LT (SS)] \tTeaching Wk1-13
-NH0007 \tCRITICAL PERSPECTIVES ON TECHNOLOGY & SOCIETY \t3 \tCORE \tINTERDISCIPLINARY COLLABORATIVE CORE \t  \t46076 \tREGISTERED \t  \tTUT \tT006 \tTHU \t1930-2120 \tCOLLAB 1 \tTeaching Wk1-13
-SC1005 \tDIGITAL LOGIC \t3 \tCORE \t  \t  \t10104 \tREGISTERED \t  \tTUT \tTAIS1 \tTUE \t1230-1320 \tTR+6
-[Tutorial Room + 6 (NS)] \tTeaching Wk2-13
-\t\t\t\t\t\t\t\t\tLAB \tTAIS1 \tMON \t1230-1420 \tHPL \tTeaching Wk1,3,5,7,9,11,13
-\t\t\t\t\t\t\t\t\tLEC/STUDIO \tLE2 \tMON \t0830-0920 \tLT1A
-[LT1A (NS)] \tTeaching Wk1-13
-\t\t\t\t\t\t\t\t\tLEC/STUDIO \tLE2 \tTUE \t1530-1620 \tLT1A
-[LT1A (NS)] \tTeaching Wk1-13
-SC1301 \tLANGUAGE & LOGIC \t3 \tCORE \tINTERDISCIPLINARY COLLABORATIVE CORE \t  \t22035 \tREGISTERED \t  \tSEM \tS2 \tWED \t0830-1120 \tRPR SR2 \tTeaching Wk1-13
-SC1303 \tPROGRAMMING WITH DATA STRUCTURES & ALGORITHMS \t4 \tCORE \tTAIS \t  \t10416 \tREGISTERED \t  \tSEM \tTAIS1 \tTHU \t0930-1220 \tLHN-TR+36
-[Tutorial Room + 36 (The Arc)] \tTeaching Wk1-13
-SC5401 \tMASTER CLASS 1 (TURING ON COMPUTABILITY & INTELLIGENCE) \t3 \tBROADENING AND DEEPENING ELECTIVE \t  \t  \t10417 \tREGISTERED \t  \tSEM \tTAIS1 \tFRI \t1230-1420 \tLHS-TR+47
-[Tutorial Room + 47 (The Hive)] \tTeaching Wk8-10
-\t\t\t\t\t\t\t\t\tSEM \tTAIS1 \tFRI \t1530-1720 \tLHS-TR+47
-[Tutorial Room + 47 (The Hive)] \tTeaching Wk8-10
-\t\t\t\t\t\t\t\t\tSEM \tTAIS1 \tMON \t1530-1720 \tLT15
-[LT15 (NS)] \tTeaching Wk9,10
-\t\t\t\t\t\t\t\t\tSEM \tTAIS1 \tTUE \t1630-1820 \tLHS-TR+56
-[Tutorial Room + 56 (The Hive)] \tTeaching Wk9,10
-\t\t\t\t\t\t\t\t\tSEM \tTAIS1 \tTUE \t1630-1820 \tTAISPSPACE \tTeaching Wk8
-\t\t\t\t\t\t\t\t\tSEM \tTAIS1 \tMON \t1730-1920 \tTAISPSPACE \tTeaching Wk11
-\t\t\t\t\t\t\t\t\tSEM \tTAIS1 \tMON \t1730-1920 \tLHS-LT
-[LT (HIVE)] \tTeaching Wk12
-\t\t\t\t\t\t\t\t\tSEM \tTAIS1 \tMON \t1830-2020 \tTAISPSPACE \tTeaching Wk8-10`;
+// Synthetic sample only — paste your own table over it. Do not commit a real
+// timetable to a public repo: it publishes your location for every hour of the term.
+const DEFAULT_INPUT = `Course\tTitle\tAU\tCourse
+Type\tS/U Grade option\tGER
+Type\tIndex
+Number\tStatus\tChoice\tClass
+Type\tGroup\tDay\tTime\tVenue\tRemark\tExam
+\tXX1001\tSample Course One\t3\tCore\t \t \t00001\tRegistered\t \tLec/Stu\tLE1\tMon\t0930to1020\tLT1
+[Lecture Theatre 1]\tTeaching Wk1-13\t21-Nov-2026 0900to1100 hrs
+ \t \t \t \t \t \t \t \t \t \tTut\tT01\tWed\t1330to1420\tTR1\tTeaching Wk2-13\t 
+\tXX1002\tSample Course Two\t2\tCore\t \tICC\t00002\tRegistered\t \tSem\tS1\tThu\t1030to1220\tSR2\tTeaching Wk1,3,5,7,9,11\tNot Applicable`;
 
 document.getElementById('rawInput').value = DEFAULT_INPUT;
 
 /* ---------- constants ---------- */
 
-const CLASS_TYPE_RE   = /^(TUT|LEC\/STUDIO|LAB|SEM|PRJ|DES)$/;
-const DAY_RE          = /^(MON|TUE|WED|THU|FRI|SAT|SUN)$/;
-const TIME_RE         = /^(\d{4})-(\d{4})$/;
-const COURSE_CODE_RE  = /^[A-Z]{2,3}\d{3,4}$/;
-const CLASS_TYPE_LABELS = {
-  'TUT': 'Tutorial', 'LEC/STUDIO': 'Lecture', 'LAB': 'Lab',
-  'SEM': 'Seminar', 'PRJ': 'Project', 'DES': 'Design'
+// StudentLink exports differ between semesters and faculties. Class types come
+// through as both TUT and Tut, LEC/STUDIO and Lec/Stu; times as 1430-1620 and
+// 1430to1620. Everything is normalised to a canonical form on the way in.
+const CLASS_TYPE_ALIASES = {
+  'TUT':'TUT', 'TUTORIAL':'TUT',
+  'LEC':'LEC', 'LECTURE':'LEC', 'LEC/STU':'LEC', 'LEC/STUDIO':'LEC', 'STUDIO':'LEC',
+  'LAB':'LAB', 'LABORATORY':'LAB',
+  'SEM':'SEM', 'SEMINAR':'SEM',
+  'PRJ':'PRJ', 'PROJECT':'PRJ',
+  'DES':'DES', 'DESIGN':'DES'
 };
+const CLASS_TYPE_LABELS = {
+  'TUT':'Tutorial', 'LEC':'Lecture', 'LAB':'Lab',
+  'SEM':'Seminar', 'PRJ':'Project', 'DES':'Design'
+};
+const KNOWN_CLASS_TYPES = 'Tut / Lec/Stu / Lec/Studio / Lab / Sem / Prj / Des';
+
+const TIME_RE        = /^(\d{4})\s*(?:-|\u2013|\u2014|to)\s*(\d{4})$/i;
+const COURSE_CODE_RE = /^[A-Z]{2,3}\d{3,4}$/;
+const WEEK_LIST_RE   = /Teaching\s*Wk\s*(\d+(?:\s*[,-]\s*\d+)*)/i;
+const WEEK_LOOSE_RE  = /\bWk\s*(\d+(?:\s*[,-]\s*\d+)*)/i;
+const REMARK_RE      = /Teaching\s*Wk/i;
+
+function canonClassType(tok) {
+  return CLASS_TYPE_ALIASES[String(tok).trim().toUpperCase()] || null;
+}
+function canonDay(tok) {
+  const d = String(tok).trim().toUpperCase();
+  return Object.prototype.hasOwnProperty.call(DAY_OFFSETS, d) ? d : null;
+}
 const DAY_OFFSETS = { MON:0, TUE:1, WED:2, THU:3, FRI:4, SAT:5, SUN:6 };
 const DAY_JS      = { MON:1, TUE:2, WED:3, THU:4, FRI:5, SAT:6, SUN:0 };
 const MINOR_WORDS = new Set(['of','on','the','and','with','in','to','a','an','for','&']);
@@ -215,7 +216,7 @@ const MINOR_WORDS = new Set(['of','on','the','and','with','in','to','a','an','fo
 // these tokens is part of that header block.
 const HEADER_TOKENS = new Set([
   'course','title','au','type','group','s/u grade option','index','number',
-  'status','choice','class','day','time','venue','remark'
+  'status','choice','class','day','time','venue','remark','ger','exam'
 ]);
 
 const MAX_TEACHING_WEEK = 13;   // beyond this: warn, still emit
@@ -310,9 +311,9 @@ function parseWeeks(row) {
   if (!remark) return [];
 
   // Anchor on "Teaching Wk" so a venue name containing "Wk" can't match.
-  let m = remark.match(/Teaching\s*Wk\s*([\d,\s\-]+)/i);
+  let m = remark.match(WEEK_LIST_RE);
   if (!m) {
-    m = remark.match(/\bWk\s*([\d,\s\-]+)/i);
+    m = remark.match(WEEK_LOOSE_RE);
     if (m) {
       diag('warn', `${rowLabel(row)}: week list "${remark}" is not prefixed with "Teaching" — reading it anyway, confirm it isn't part of a venue name.`, row.lineNo);
     }
@@ -353,23 +354,30 @@ function parseTimetable(text) {
   let inHeader = true;
 
   function pushRow(cols, ctIdx, course, lineNo, raw) {
-    const classType = cols[ctIdx];
-    const group = cols[ctIdx + 1] || '';
-    const day   = cols[ctIdx + 2] || '';
-    const time  = cols[ctIdx + 3] || '';
-    const venue = cols[ctIdx + 4] || '';
-    const remark = cols[ctIdx + 5] || '';
+    const rawType = cols[ctIdx];
+    const classType = canonClassType(rawType);
+    const group   = cols[ctIdx + 1] || '';
+    const rawDay  = cols[ctIdx + 2] || '';
+    const rawTime = cols[ctIdx + 3] || '';
+    const venue   = cols[ctIdx + 4] || '';
 
-    if (!DAY_RE.test(day)) {
-      diag('warn', `${course.code} ${classType}: expected a day (MON–SUN) but found "${day || '(nothing)'}" — this class row was dropped and produces no events.`, lineNo, raw);
+    // Some exports carry a trailing Exam column, so the remark isn't always at a
+    // fixed offset. Find it by content instead of counting columns.
+    const remark = cols.slice(ctIdx + 5).find(c => REMARK_RE.test(c)) || '';
+
+    const day = canonDay(rawDay);
+    if (!day) {
+      diag('warn', `${course.code} ${rawType}: expected a day (Mon–Sun) but found "${rawDay || '(nothing)'}" — this class row was dropped and produces no events.`, lineNo, raw);
       return;
     }
-    if (!TIME_RE.test(time)) {
-      diag('warn', `${course.code} ${classType} ${day}: expected a time like 0830-0920 but found "${time || '(nothing)'}" — this class row was dropped and produces no events.`, lineNo, raw);
+    const tm = TIME_RE.exec(rawTime);
+    if (!tm) {
+      diag('warn', `${course.code} ${rawType} ${day}: expected a time like 0830-0920 or 0830to0920 but found "${rawTime || '(nothing)'}" — this class row was dropped and produces no events.`, lineNo, raw);
       return;
     }
+    const time = `${tm[1]}-${tm[2]}`;
     if (!venue) {
-      diag('warn', `${course.code} ${classType} ${day} ${time}: no venue — the calendar Location will be blank.`, lineNo, raw);
+      diag('warn', `${course.code} ${rawType} ${day} ${time}: no venue — the calendar Location will be blank.`, lineNo, raw);
     }
     rows.push({
       course: course.code, title: course.title,
@@ -394,7 +402,8 @@ function parseTimetable(text) {
 
     // Wrapped venue line: "[Tutorial Room + 53 (The Hive)]\tTeaching Wk2-13"
     if (trimmed.startsWith('[')) {
-      const remark = cols.slice(1).join(' ');
+      const tail = cols.slice(1);
+      const remark = tail.find(c => REMARK_RE.test(c)) || tail.find(c => WEEK_LOOSE_RE.test(c)) || '';
       if (!rows.length) {
         diag('warn', 'Venue continuation line appears before any class row — its teaching weeks were discarded.', lineNo, trimmed);
         return;
@@ -424,9 +433,9 @@ function parseTimetable(text) {
       if (!title) {
         diag('warn', `Course ${cols[0]} has no title — the calendar subject will just be the code.`, lineNo, trimmed);
       }
-      const ctIdx = cols.findIndex((c, i) => i > 1 && CLASS_TYPE_RE.test(c));
+      const ctIdx = cols.findIndex((c, i) => i > 1 && canonClassType(c) !== null);
       if (ctIdx === -1) {
-        diag('warn', `Course ${cols[0]}: no class type (TUT / LEC/STUDIO / LAB / SEM / PRJ / DES) on this line — the row was dropped.`, lineNo, trimmed);
+        diag('warn', `Course ${cols[0]}: no class type (${KNOWN_CLASS_TYPES}) on this line — the row was dropped.`, lineNo, trimmed);
         return;
       }
       pushRow(cols, ctIdx, currentCourse, lineNo, trimmed);
@@ -434,7 +443,7 @@ function parseTimetable(text) {
     }
 
     // Continuation row for the course above.
-    if (CLASS_TYPE_RE.test(cols[0])) {
+    if (canonClassType(cols[0]) !== null) {
       if (!currentCourse) {
         diag('warn', `A ${cols[0]} row appears before any course code — dropped, because there is nothing to attach it to.`, lineNo, trimmed);
         return;
@@ -485,6 +494,18 @@ function formatTime(hhmm) {
   return `${h12}:${m} ${ampm}`;
 }
 
+// Excel and Sheets treat a leading = + - @ (or tab/CR) as the start of a formula.
+// Google Calendar does not, so the value is left intact and reported instead.
+const FORMULA_LEAD_RE = /^[=+\-@\t\r]/;
+
+function checkFormulaInjection(row, subject) {
+  for (const [label, value] of [['subject', subject], ['venue', row.venue]]) {
+    if (value && FORMULA_LEAD_RE.test(value)) {
+      diag('warn', `${rowLabel(row)}: the ${label} "${value}" starts with a character that Excel and Google Sheets read as a formula. Calendar import is unaffected, but do not open this CSV in a spreadsheet without checking it.`, row.lineNo);
+    }
+  }
+}
+
 function csvEscape(field) {
   field = String(field);
   if (/[",\r\n]/.test(field)) field = '"' + field.replace(/"/g, '""') + '"';
@@ -525,6 +546,7 @@ function generateCSV(rows, week1Monday, lastWeekBeforeRecess, recessWeeks) {
 
     const dayOff = DAY_OFFSETS[row.day];
     const subject = `${row.course} ${toTitleCase(row.title)} (${CLASS_TYPE_LABELS[row.classType] || row.classType})`;
+    checkFormulaInjection(row, subject);
 
     for (const wk of weeks) {
       if (wk < 1 || wk > ABSURD_WEEK) {
