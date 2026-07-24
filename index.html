@@ -80,6 +80,13 @@
   .count-pill.warn{background:var(--warn-soft); color:var(--warn);}
   .count-pill.err{background:var(--err-soft); color:var(--err);}
 
+  .toggle{display:inline-flex; border:1px solid var(--line); border-radius:3px; overflow:hidden;}
+  .toggle .fmt{
+    font-family:var(--mono); font-size:0.7rem; letter-spacing:0.06em; font-weight:600;
+    padding:0.2rem 0.6rem; border:none; border-radius:0; background:#fff; color:#5b5f63;
+  }
+  .toggle .fmt[aria-pressed="true"]{background:var(--accent); color:#fff;}
+
   #diagPanel{
     background:#fff; border:1px solid var(--line); border-radius:4px;
     padding:0.9rem 1rem; font-size:0.83rem;
@@ -137,8 +144,9 @@
   <section>
     <span class="step-label">3 · Generate</span>
     <div class="actions">
-      <button id="genBtn" type="button">Generate CSV</button>
-      <button id="dlBtn" type="button" class="secondary" disabled>Download CSV</button>
+      <button id="genBtn" type="button">Generate</button>
+      <button id="dlCsvBtn" type="button" class="secondary" disabled>Download .csv</button>
+      <button id="dlIcsBtn" type="button" class="secondary" disabled>Download .ics</button>
     </div>
     <div id="status" class="status" role="status" aria-live="polite"></div>
   </section>
@@ -152,9 +160,15 @@
   </section>
 
   <section>
-    <span class="step-label">5 · Output</span>
+    <span class="step-label" style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+      5 · Output
+      <span class="toggle" role="group" aria-label="Preview format">
+        <button type="button" class="fmt" data-fmt="csv" aria-pressed="true">CSV</button>
+        <button type="button" class="fmt" data-fmt="ics" aria-pressed="false">ICS</button>
+      </span>
+    </span>
     <textarea id="csvOutput" readonly spellcheck="false" aria-label="Generated CSV"
-      placeholder="CSV will appear here after you select Generate CSV."></textarea>
+      placeholder="Output will appear here after you select Generate."></textarea>
   </section>
 </div>
 
@@ -506,19 +520,13 @@ function checkFormulaInjection(row, subject) {
   }
 }
 
-function csvEscape(field) {
-  field = String(field);
-  if (/[",\r\n]/.test(field)) field = '"' + field.replace(/"/g, '""') + '"';
-  return field;
-}
+/* ---------- event expansion (shared by both serialisers) ---------- */
 
-/* ---------- CSV generation ---------- */
-
-function generateCSV(rows, week1Monday, lastWeekBeforeRecess, recessWeeks) {
-  const header = ['Subject', 'Start Date', 'Start Time', 'End Date', 'End Time', 'All Day Event', 'Description', 'Location', 'Private'];
-  const csvRows = [header];
+// Expands class rows into individual dated events. Both CSV and ICS are written
+// from this one list, so the two files can never disagree.
+function buildEvents(rows, week1Monday, lastWeekBeforeRecess, recessWeeks) {
+  const events = [];
   const seen = new Map();
-  let eventCount = 0;
   let emptyRows = 0;
 
   for (const row of rows) {
@@ -541,7 +549,7 @@ function generateCSV(rows, week1Monday, lastWeekBeforeRecess, recessWeeks) {
       continue;
     }
     if (endMin <= startMin) {
-      diag('warn', `${rowLabel(row)}: end time is not after start time. Events were still written, but they will look wrong in Google Calendar.`, row.lineNo, row.raw);
+      diag('warn', `${rowLabel(row)}: end time is not after start time. Events were still written, but they will look wrong in your calendar.`, row.lineNo, row.raw);
     }
 
     const dayOff = DAY_OFFSETS[row.day];
@@ -566,28 +574,143 @@ function generateCSV(rows, week1Monday, lastWeekBeforeRecess, recessWeeks) {
         continue;
       }
 
-      const dateStr = formatDate(d);
-      const key = `${subject}|${dateStr}|${startHHMM}`;
+      const key = `${subject}|${formatDate(d)}|${startHHMM}`;
       if (seen.has(key)) {
-        diag('warn', `${rowLabel(row)} on ${dateStr}: identical event already written from line ${seen.get(key)}. Both were kept, so you will get a duplicate in your calendar.`, row.lineNo);
+        diag('warn', `${rowLabel(row)} on ${formatDate(d)}: identical event already written from line ${seen.get(key)}. Both were kept, so you will get a duplicate in your calendar.`, row.lineNo);
       } else {
         seen.set(key, row.lineNo);
       }
 
-      csvRows.push([
-        subject, dateStr, formatTime(startHHMM), dateStr, formatTime(endHHMM),
-        'False', `Week ${wk}`, row.venue, 'False'
-      ]);
-      eventCount++;
+      events.push({
+        subject, date: d, startHHMM, endHHMM, week: wk,
+        venue: row.venue, course: row.course, classType: row.classType, group: row.group
+      });
     }
   }
 
-  return {
-    csv: csvRows.map(r => r.map(csvEscape).join(',')).join('\r\n'),
-    eventCount,
-    rowCount: rows.length,
-    emptyRows
-  };
+  return { events, rowCount: rows.length, emptyRows };
+}
+
+/* ---------- CSV serialiser ---------- */
+
+function csvEscape(field) {
+  field = String(field);
+  if (/[",\r\n]/.test(field)) field = '"' + field.replace(/"/g, '""') + '"';
+  return field;
+}
+
+function toCSV(events) {
+  const out = [['Subject', 'Start Date', 'Start Time', 'End Date', 'End Time', 'All Day Event', 'Description', 'Location', 'Private']];
+  for (const e of events) {
+    const ds = formatDate(e.date);
+    out.push([
+      e.subject, ds, formatTime(e.startHHMM), ds, formatTime(e.endHHMM),
+      'False', `Week ${e.week}`, e.venue, 'False'
+    ]);
+  }
+  return out.map(r => r.map(csvEscape).join(',')).join('\r\n');
+}
+
+/* ---------- ICS serialiser ---------- */
+
+// Singapore has never observed DST since 1935 and sits at a flat +08, so the
+// VTIMEZONE is a single STANDARD component with no transition rules.
+const ICS_TZID = 'Asia/Singapore';
+const ICS_VTIMEZONE = [
+  'BEGIN:VTIMEZONE',
+  `TZID:${ICS_TZID}`,
+  'X-LIC-LOCATION:Asia/Singapore',
+  'BEGIN:STANDARD',
+  'DTSTART:19700101T000000',
+  'TZOFFSETFROM:+0800',
+  'TZOFFSETTO:+0800',
+  'TZNAME:+08',
+  'END:STANDARD',
+  'END:VTIMEZONE'
+];
+
+// RFC 5545 §3.3.11: escape backslash first, then the delimiters.
+function icsEscape(text) {
+  return String(text)
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\r?\n/g, '\\n');
+}
+
+// RFC 5545 §3.1: lines are limited to 75 *octets*, continued with CRLF + space.
+// Fold by code point so a multi-byte character is never split across the break.
+function icsFold(line) {
+  const enc = new TextEncoder();
+  if (enc.encode(line).length <= 75) return line;
+  const parts = [];
+  let cur = '', bytes = 0;
+  for (const ch of line) {
+    const n = enc.encode(ch).length;
+    if (bytes + n > 75) {
+      parts.push(cur);
+      cur = ' ' + ch;
+      bytes = 1 + n;
+    } else {
+      cur += ch;
+      bytes += n;
+    }
+  }
+  parts.push(cur);
+  return parts.join('\r\n');
+}
+
+function icsLocalStamp(date, hhmm) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}${m}${d}T${hhmm}00`;
+}
+
+function icsUtcStamp(date) {
+  const p = n => String(n).padStart(2, '0');
+  return `${date.getUTCFullYear()}${p(date.getUTCMonth() + 1)}${p(date.getUTCDate())}`
+       + `T${p(date.getUTCHours())}${p(date.getUTCMinutes())}${p(date.getUTCSeconds())}Z`;
+}
+
+// Deterministic UID: re-importing an updated file replaces the old events
+// instead of duplicating them.
+function icsUid(e) {
+  const day = icsLocalStamp(e.date, e.startHHMM).slice(0, 8);
+  const slug = `${e.course}-${e.classType}-${day}-${e.startHHMM}`.replace(/[^A-Za-z0-9-]/g, '');
+  return `${slug}@ntu-timetable`;
+}
+
+function toICS(events) {
+  const stamp = icsUtcStamp(new Date());
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//NTU Timetable to CSV//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    'X-WR-CALNAME:NTU Timetable',
+    `X-WR-TIMEZONE:${ICS_TZID}`,
+    ...ICS_VTIMEZONE
+  ];
+
+  for (const e of events) {
+    lines.push(
+      'BEGIN:VEVENT',
+      `UID:${icsUid(e)}`,
+      `DTSTAMP:${stamp}`,
+      `DTSTART;TZID=${ICS_TZID}:${icsLocalStamp(e.date, e.startHHMM)}`,
+      `DTEND;TZID=${ICS_TZID}:${icsLocalStamp(e.date, e.endHHMM)}`,
+      `SUMMARY:${icsEscape(e.subject)}`,
+      `DESCRIPTION:${icsEscape(`Week ${e.week}${e.group ? ' · Group ' + e.group : ''}`)}`,
+      `LOCATION:${icsEscape(e.venue)}`,
+      'TRANSP:OPAQUE',
+      'END:VEVENT'
+    );
+  }
+
+  lines.push('END:VCALENDAR');
+  return lines.map(icsFold).join('\r\n') + '\r\n';
 }
 
 /* ---------- config reading ---------- */
@@ -629,6 +752,12 @@ function readConfig() {
 /* ---------- run ---------- */
 
 let lastCSV = '';
+let lastICS = '';
+let previewFmt = 'csv';
+
+function showPreview() {
+  document.getElementById('csvOutput').value = previewFmt === 'ics' ? lastICS : lastCSV;
+}
 
 function setPills(items) {
   const row = document.getElementById('pillRow');
@@ -643,12 +772,13 @@ function setPills(items) {
 
 function runParse() {
   const statusEl = document.getElementById('status');
-  const dlBtn = document.getElementById('dlBtn');
   const panel = document.getElementById('diagPanel');
 
   DIAG = [];
   lastCSV = '';
-  dlBtn.disabled = true;
+  lastICS = '';
+  document.getElementById('dlCsvBtn').disabled = true;
+  document.getElementById('dlIcsBtn').disabled = true;
   statusEl.className = 'status';
   document.getElementById('csvOutput').value = '';
   setPills([]);
@@ -676,13 +806,16 @@ function runParse() {
     return;
   }
 
-  const { csv, eventCount, rowCount, emptyRows } = generateCSV(
+  const { events, rowCount, emptyRows } = buildEvents(
     rows, cfg.week1Monday, cfg.lastWeekBeforeRecess, cfg.recessWeeks
   );
+  const eventCount = events.length;
 
-  document.getElementById('csvOutput').value = csv;
-  lastCSV = csv;
-  dlBtn.disabled = eventCount === 0;
+  lastCSV = toCSV(events);
+  lastICS = eventCount ? toICS(events) : '';
+  showPreview();
+  document.getElementById('dlCsvBtn').disabled = eventCount === 0;
+  document.getElementById('dlIcsBtn').disabled = eventCount === 0;
 
   const counts = renderDiagnostics();
 
@@ -702,13 +835,13 @@ function runParse() {
   }
 }
 
-function downloadCSV() {
-  if (!lastCSV) return;
-  const blob = new Blob(['\uFEFF' + lastCSV], { type: 'text/csv;charset=utf-8;' });
+function download(text, filename, mime) {
+  if (!text) return;
+  const blob = new Blob([text], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'timetable.csv';
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -716,7 +849,22 @@ function downloadCSV() {
 }
 
 document.getElementById('genBtn').addEventListener('click', runParse);
-document.getElementById('dlBtn').addEventListener('click', downloadCSV);
+// The BOM makes Excel open the CSV as UTF-8; .ics must not have one, as some
+// calendar parsers choke on a BOM before BEGIN:VCALENDAR.
+document.getElementById('dlCsvBtn').addEventListener('click',
+  () => download('\uFEFF' + lastCSV, 'timetable.csv', 'text/csv;charset=utf-8;'));
+document.getElementById('dlIcsBtn').addEventListener('click',
+  () => download(lastICS, 'timetable.ics', 'text/calendar;charset=utf-8;'));
+
+for (const btn of document.querySelectorAll('.fmt')) {
+  btn.addEventListener('click', () => {
+    previewFmt = btn.dataset.fmt;
+    for (const b of document.querySelectorAll('.fmt')) {
+      b.setAttribute('aria-pressed', String(b.dataset.fmt === previewFmt));
+    }
+    showPreview();
+  });
+}
 </script>
 </body>
 </html>
