@@ -79,6 +79,24 @@
     <textarea id="csvOutput" readonly spellcheck="false" aria-label="Generated CSV"
       placeholder="Output will appear here after you select Generate."></textarea>
   </section>
+
+  <section>
+    <span class="step-label">7 · Import into Google Calendar</span>
+    <ol class="guide-steps">
+      <li>Consider creating a fresh, empty calendar first (Google Calendar sidebar → <strong>Other calendars +</strong> → <strong>Create new calendar</strong>). Importing into its own calendar means you can undo the whole thing later by just deleting that calendar.</li>
+      <li>
+        In Google Calendar, click the gear icon (top right) → <strong>Settings</strong>, then scroll the left sidebar down to <strong>Import &amp; export</strong>.
+        <img class="guide-shot guide-shot--small" src="images/gcal-settings-menu.png"
+          alt="Google Calendar Settings sidebar with General options expanded and 'Import & export' highlighted near the bottom.">
+      </li>
+      <li>
+        Click <strong>Select file from your computer</strong> and choose the <code>.ics</code> file you downloaded above (or the <code>.csv</code>, if you prefer). Use the <strong>Add to calendar</strong> dropdown to pick the calendar you just created, then click <strong>Import</strong>.
+        <img class="guide-shot guide-shot--small" src="images/gcal-import-panel.png"
+          alt="Google Calendar Import panel with a 'Select file from your computer' button and an 'Add to calendar' dropdown set to a calendar named Work.">
+      </li>
+      <li>Google Calendar will show how many events were successfully added. Check your calendar afterwards against the Report section above — if it warned about duplicates or dropped rows, those won't show up as extra events.</li>
+    </ol>
+  </section>
 </div>
 
 <script type="module" src="js/main.js"></script>
