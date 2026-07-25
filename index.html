@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+      content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow">
 <title>NTU Timetable → CSV</title>
@@ -16,12 +16,24 @@
   <p class="sub">Paste your NTU course registration table (the tab-separated export from StudentLink), set your semester's Week&nbsp;1 Monday and recess placement, and generate a CSV ready to import into Google Calendar. Anything the parser can't read is reported below with its line number — check that list before you import.</p>
 
   <section>
-    <span class="step-label">1 · Raw table</span>
+    <span class="step-label">1 · Get your table</span>
+    <ol class="guide-steps">
+      <li>Sign in at <a href="https://wish.wis.ntu.edu.sg/pls/webexe/ldap_login.login?w_url=https://wish.wis.ntu.edu.sg/pls/webexe/dars_result_ro.main_display" target="_blank" rel="noopener noreferrer">your NTU Degree Audit (DARS) account</a>.</li>
+      <li>Scroll down and click <strong>View Course Timetable</strong>.</li>
+      <li>Highlight the whole table (including the header row) and copy it.</li>
+      <li>Paste it into the box below, replacing the sample data.</li>
+    </ol>
+    <img class="guide-shot" src="images/wish-timetable-screenshot.png"
+      alt="NTU course registration timetable page, showing the table of registered courses with columns for Course, Title, AU, Class Type, Group, Day, Time, Venue, and Remark, ready to be highlighted and copied.">
+  </section>
+
+  <section>
+    <span class="step-label">2 · Raw table</span>
     <textarea id="rawInput" spellcheck="false" aria-label="Raw timetable table"></textarea>
   </section>
 
   <section>
-    <span class="step-label">2 · Semester settings</span>
+    <span class="step-label">3 · Semester settings</span>
     <div class="config">
       <div class="field">
         <label for="week1Monday">Week 1 Monday</label>
@@ -39,7 +51,7 @@
   </section>
 
   <section>
-    <span class="step-label">3 · Generate</span>
+    <span class="step-label">4 · Generate</span>
     <div class="actions">
       <button id="genBtn" type="button">Generate</button>
       <button id="dlCsvBtn" type="button" class="secondary" disabled>Download .csv</button>
@@ -50,7 +62,7 @@
 
   <section>
     <span class="step-label step-label--row">
-      4 · Report
+      5 · Report
       <span class="pill-row" id="pillRow"></span>
     </span>
     <div id="diagPanel" class="clean">Nothing generated yet.</div>
@@ -58,7 +70,7 @@
 
   <section>
     <span class="step-label step-label--row step-label--gap">
-      5 · Output
+      6 · Output
       <span class="toggle" role="group" aria-label="Preview format">
         <button type="button" class="fmt" data-fmt="csv" aria-pressed="true">CSV</button>
         <button type="button" class="fmt" data-fmt="ics" aria-pressed="false">ICS</button>
