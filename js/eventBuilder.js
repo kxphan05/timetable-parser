@@ -5,6 +5,7 @@ import { diag } from './diagnostics.js';
 import { parseWeeks } from './weekParser.js';
 import { checkFormulaInjection, formatDate, parseHHMM, weekMonday } from './dateTime.js';
 import { rowLabel, toTitleCase } from './textUtils.js';
+import { resolveVenueLocation } from './venueDirectory.js';
 
 // Expands class rows into individual dated events. Both CSV and ICS are written
 // from this one list, so the two files can never disagree.
@@ -40,6 +41,12 @@ export function buildEvents(rows, week1Monday, lastWeekBeforeRecess, recessWeeks
     const subject = `${row.course} ${toTitleCase(row.title)} (${CLASS_TYPE_LABELS[row.classType] || row.classType})`;
     checkFormulaInjection(row, subject);
 
+    const resolvedVenue = resolveVenueLocation(row.venue);
+    if (!resolvedVenue) {
+      diag('warn', `${rowLabel(row)}: venue "${row.venue}" not found in the facility directory — Location left as-is.`, row.lineNo, row.raw);
+    }
+    const venue = resolvedVenue || row.venueName || row.venue;
+
     for (const wk of weeks) {
       if (wk < 1 || wk > ABSURD_WEEK) {
         diag('warn', `${rowLabel(row)}: week ${wk} is outside 1–${ABSURD_WEEK} and looks like a typo — no event written for it.`, row.lineNo);
@@ -67,7 +74,7 @@ export function buildEvents(rows, week1Monday, lastWeekBeforeRecess, recessWeeks
 
       events.push({
         subject, date: d, startHHMM, endHHMM, week: wk,
-        venue: row.venue, course: row.course, classType: row.classType, group: row.group
+        venue, course: row.course, classType: row.classType, group: row.group
       });
     }
   }

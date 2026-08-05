@@ -61,6 +61,12 @@ export function parseTimetable(text) {
     if (trimmed.startsWith('[')) {
       const tail = cols.slice(1);
       const remark = tail.find(c => REMARK_RE.test(c)) || tail.find(c => WEEK_LOOSE_RE.test(c)) || '';
+      // cols[0] is the bracketed segment itself ("[Tutorial Room + 53 (The Hive)]"),
+      // but since splitCols also breaks on runs of 2+ spaces, a long venue can
+      // spill across several columns before the remark/week-list column starts.
+      // Take everything up to (but not including) that column as the venue.
+      const remarkIdx = remark ? cols.indexOf(remark) : cols.length;
+      const fullVenue = cols.slice(0, remarkIdx).join(' ').replace(/^\[|\]$/g, '').trim();
       if (!rows.length) {
         diag('warn', 'Venue continuation line appears before any class row — its teaching weeks were discarded.', lineNo, trimmed);
         return;
@@ -78,6 +84,11 @@ export function parseTimetable(text) {
         return;
       }
       target.remark = remark;
+      // Keep this alongside the original short code (row.venue) rather than
+      // replacing it — the facility directory lookup in eventBuilder.js
+      // matches on the short code, and only falls back to this name when
+      // the directory doesn't have it.
+      if (fullVenue) target.venueName = fullVenue;
       return;
     }
 
