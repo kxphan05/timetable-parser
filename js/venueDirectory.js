@@ -292,7 +292,8 @@ const DIRECTORY = buildDirectory();
 // facility code, and aren't in the directory at all — supplied by hand.
 const MANUAL_OVERRIDES = [
   { test: v => v.startsWith('RPR'), code: v => v, tag: 'RENAISSANCE ENGINEERING ROOM', paren: 'BINJAI HALL 19B', room: null },
-  { test: v => v === 'TAISPSPACE', code: () => 'TAISPSPACE', tag: null, paren: 'NORTH SPINE', room: 'BLOCK N4 LEVEL 1' }
+  { test: v => v === 'TAISPSPACE', code: () => 'TAISPSPACE', tag: null, paren: 'NORTH SPINE', room: 'N4-01B-04' },
+  { test: v => v === 'HPL', code: () => 'TAISPSPACE', tag: 'HARDWARE PROJECT LAB', paren: 'NORTH SPINE', room: 'N4-01C-09A' }
 ];
 
 // Splits both codes on their first hyphen; if the prefixes match, both codes
