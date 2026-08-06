@@ -291,7 +291,7 @@ const DIRECTORY = buildDirectory();
 // Venues that use the campus's colloquial name rather than the PINES
 // facility code, and aren't in the directory at all — supplied by hand.
 const MANUAL_OVERRIDES = [
-  { test: v => v.startsWith('RPR'), code: v => v, tag: 'RENAISSANCE ENGINEERING ROOM', paren: 'BINJAI HALL 19B', room: null },
+  { test: v => v.startsWith('RPR'), code: v => v, tag: 'RENAISSANCE PROJECT ROOM', paren: 'SOUTH SPINE', room: 'S3.1-B4-RPR' },
   { test: v => v === 'TAISPSPACE', code: () => 'TAISPSPACE', tag: null, paren: 'NORTH SPINE', room: 'N4-01B-04' },
   { test: v => v === 'HPL', code: () => 'HARDWARE PROJECT LAB', tag: null, paren: 'NORTH SPINE', room: 'N4-01C-09A' }
 ];
